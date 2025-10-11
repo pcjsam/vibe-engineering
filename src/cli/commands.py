@@ -8,7 +8,7 @@ from rich.table import Table
 
 from src.db import MongoDBClient, get_documents, insert_document
 from src.llm import FireworksClient
-from src.schemas import Requirement
+from src.schemas import Requirement, Plan
 
 app = typer.Typer()
 
@@ -62,9 +62,7 @@ def team():
 
 
 @app.command()
-def requirements(
-    prompt: str, db_name: str = "master", collection_name: str = "requirements"
-):
+def requirements(prompt: str, db_name: str = "master", collection_name: str = "llm"):
     """Generate a requirement schema using LLM and store it in MongoDB."""
     console = Console()
 
@@ -74,6 +72,56 @@ def requirements(
         response = llm_client.generate_with_schema(
             prompt=prompt,
             schema=Requirement.model_json_schema(),
+            schema_name="Requirement",
+        )
+
+        # Parse the JSON response
+        doc = json.loads(response)
+
+        # Store in MongoDB
+        with MongoDBClient() as db_client:
+            inserted_id = insert_document(
+                db_client=db_client,
+                db_name=db_name,
+                collection_name=collection_name,
+                document=doc,
+            )
+
+        console.print(
+            f"[green]✓[/green] Document stored in {db_name}.{collection_name}"
+        )
+        console.print(f"[dim]Document ID: {inserted_id}[/dim]\n")
+
+        # Create a copy of doc for display, converting ObjectId to string if present
+        display_doc = doc.copy()
+        if "_id" in display_doc:
+            display_doc["_id"] = str(display_doc["_id"])
+
+        # Pretty print the schema with rich
+        console.print("[bold cyan]Generated Requirement:[/bold cyan]")
+        from rich.syntax import Syntax
+
+        json_str = json.dumps(display_doc, indent=2, default=str)
+        syntax = Syntax(json_str, "json", theme="monokai", line_numbers=False)
+        console.print(syntax)
+
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Error parsing JSON response:[/red] {e}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
+@app.command()
+def plan(prompt: str, db_name: str = "master", collection_name: str = "llm"):
+    """Generate a requirement schema using LLM and store it in MongoDB."""
+    console = Console()
+
+    try:
+        # Generate schema using LLM
+        llm_client = FireworksClient()
+        response = llm_client.generate_with_schema(
+            prompt=prompt,
+            schema=Plan.model_json_schema(),
             schema_name="Requirement",
         )
 
