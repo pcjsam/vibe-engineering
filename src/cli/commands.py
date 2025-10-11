@@ -1,5 +1,6 @@
 """CLI commands for vibe-engineering."""
 
+import asyncio
 import json
 import uuid
 from pathlib import Path
@@ -10,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from src.db import MongoDBClient, delete_documents, get_documents, insert_document
+from src.integrations import generate_code
 from src.llm import FireworksClient, VoyageEmbeddings
 from src.schemas import Plan, Requirement, Tasks
 
@@ -476,6 +478,148 @@ All notes must include the same session_id to link to the originating plan. Foll
         console.print(f"[red]Error parsing JSON response:[/red] {e}")
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
+
+
+@app.command()
+def code(
+    working_dir: Optional[str] = typer.Option(
+        None, "--dir", "-d", help="Working directory for the project"
+    )
+):
+    """Generate code using Claude Agent SDK based on the current session.
+
+    This command fetches all documents (Requirements, Plans, and Tasks) associated
+    with the current session and uses the Claude Agent SDK to implement the project.
+    """
+    console = Console()
+    db_name = "master"
+    collection_name = "llm"
+
+    try:
+        # Check for session ID
+        session_id = get_session_id()
+        if session_id is None:
+            console.print(
+                "[red]Error:[/red] No session initialized. Please run 'init' command first."
+            )
+            raise typer.Exit(1)
+
+        console.print(f"[dim]Using session ID: {session_id}[/dim]\n")
+
+        # Fetch all documents for this session
+        with MongoDBClient() as db_client:
+            requirements_docs = get_documents(
+                db_client=db_client,
+                db_name=db_name,
+                collection_name=collection_name,
+                query={"type": "Requirement", "session_id": session_id},
+            )
+
+            plans_docs = get_documents(
+                db_client=db_client,
+                db_name=db_name,
+                collection_name=collection_name,
+                query={"type": "Plan", "session_id": session_id},
+            )
+
+            tasks_docs = get_documents(
+                db_client=db_client,
+                db_name=db_name,
+                collection_name=collection_name,
+                query={"type": "Tasks", "session_id": session_id},
+            )
+
+        # Display summary
+        console.print("[bold cyan]Session Documents Summary:[/bold cyan]")
+        console.print(f"- Requirements: {len(requirements_docs)}")
+        console.print(f"- Plans: {len(plans_docs)}")
+        console.print(f"- Tasks: {len(tasks_docs)}\n")
+
+        # Check if we have any documents
+        total_docs = len(requirements_docs) + len(plans_docs) + len(tasks_docs)
+        if total_docs == 0:
+            console.print(
+                "[yellow]No documents found for this session. Please run 'requirements', 'plan', and 'tasks' commands first.[/yellow]"
+            )
+            raise typer.Exit(0)
+
+        # Use current directory if working_dir not specified
+        if working_dir is None:
+            working_dir = str(Path.cwd())
+
+        console.print(
+            f"[bold cyan]Starting code generation with Claude Agent SDK...[/bold cyan]"
+        )
+        console.print(f"[dim]Working directory: {working_dir}[/dim]\n")
+
+        # Run the async function with a new event loop to avoid closure issues
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(
+                    generate_code(
+                        requirements=requirements_docs,
+                        plans=plans_docs,
+                        tasks=tasks_docs,
+                        session_id=session_id,
+                        working_dir=working_dir,
+                    )
+                )
+            finally:
+                # Clean up pending tasks
+                pending = asyncio.all_tasks(loop)
+                for task in pending:
+                    task.cancel()
+                # Wait for all tasks to complete cancellation
+                if pending:
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                loop.close()
+        except Exception as async_error:
+            console.print(f"[red]Async execution error:[/red] {async_error}")
+            raise
+
+        # Display results
+        if result["success"]:
+            console.print(
+                "[bold green]✓ Code generation completed successfully![/bold green]\n"
+            )
+            console.print(f"[dim]Total cost: ${result['cost_usd']:.4f} USD[/dim]\n")
+
+            # Display messages
+            if result["messages"]:
+                console.print("[bold cyan]Messages:[/bold cyan]")
+                for msg in result["messages"]:
+                    if msg.get("type") == "text":
+                        console.print(f"  {msg['content']}")
+                    elif msg.get("type") == "result":
+                        console.print(
+                            f"  [dim]Stop reason: {msg.get('stop_reason', 'N/A')}[/dim]"
+                        )
+        else:
+            console.print("[bold red]✗ Code generation failed[/bold red]\n")
+            if result["error"]:
+                console.print(f"[red]Error: {result['error']}[/red]")
+
+        # Optionally save the prompt to file
+        console.print()
+        save_to_file = typer.confirm(
+            "Would you like to save the generated prompt to a file?", default=False
+        )
+
+        if save_to_file:
+            output_file = Path(f"claude_code_prompt_{session_id[:8]}.txt")
+            output_file.write_text(result["prompt"])
+            console.print(
+                f"\n[green]✓[/green] Prompt saved to: [cyan]{output_file.absolute()}[/cyan]"
+            )
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        import traceback
+
+        console.print(f"[red]{traceback.format_exc()}[/red]")
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":

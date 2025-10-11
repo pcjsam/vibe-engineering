@@ -4,7 +4,8 @@
       "Bash(uv run:*)",
       "Bash(uv lock:*)",
       "Bash(tree:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

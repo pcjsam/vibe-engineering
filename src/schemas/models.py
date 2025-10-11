@@ -168,6 +168,7 @@ class Task(BaseModel):
 
 
 class Tasks(BaseModel):
+    type: Literal["Tasks"] = Field(default="Tasks", frozen=True)
+    session_id: str
     test_spec: TestSpec
     task: Task
-    type: Literal["Tasks"] = Field(default="Tasks", frozen=True)
