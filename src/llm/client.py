@@ -1,6 +1,7 @@
 """LLM client for Fireworks AI integration."""
+
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 from fireworks import LLM
@@ -9,7 +10,9 @@ from fireworks import LLM
 class FireworksClient:
     """Client for interacting with Fireworks AI LLM services."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "deepseek-v3p1-terminus"):
+    def __init__(
+        self, api_key: Optional[str] = None, model: str = "deepseek-v3p1-terminus"
+    ):
         """
         Initialize Fireworks AI client.
 
@@ -24,9 +27,17 @@ class FireworksClient:
             raise ValueError("FIREWORKS_API_KEY environment variable is not set")
 
         self.model = model
-        self._client = LLM(model=self.model, deployment_type="auto", api_key=self.api_key)
+        self._client = LLM(
+            model=self.model, deployment_type="auto", api_key=self.api_key
+        )
 
-    def generate_with_schema(self, prompt: str, schema: Dict[str, Any], schema_name: str = "ResponseSchema") -> str:
+    def generate_with_schema(
+        self,
+        prompt: str,
+        schema: Dict[str, Any],
+        schema_name: str = "ResponseSchema",
+        system_prompt: str = "",
+    ) -> str:
         """
         Generate a response following a specific JSON schema.
 
@@ -46,12 +57,17 @@ class FireworksClient:
                     "schema": schema,
                 },
             },
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
         )
 
         return response.choices[0].message.content
 
-    def chat(self, messages: list, temperature: float = 0.7, max_tokens: int = 2000) -> str:
+    def chat(
+        self, messages: list, temperature: float = 0.7, max_tokens: int = 2000
+    ) -> str:
         """
         Simple chat completion without schema enforcement.
 

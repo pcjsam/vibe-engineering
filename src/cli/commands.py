@@ -11,7 +11,7 @@ from rich.table import Table
 
 from src.db import MongoDBClient, get_documents, insert_document
 from src.llm import FireworksClient
-from src.schemas import Requirement, Plan
+from src.schemas import Plan, Requirement
 
 app = typer.Typer()
 
@@ -108,7 +108,9 @@ def requirements(prompt: str, db_name: str = "master", collection_name: str = "l
         # Check for session ID
         session_id = get_session_id()
         if session_id is None:
-            console.print("[red]Error:[/red] No session initialized. Please run 'init' command first.")
+            console.print(
+                "[red]Error:[/red] No session initialized. Please run 'init' command first."
+            )
             raise typer.Exit(1)
 
         console.print(f"[dim]Using session ID: {session_id}[/dim]\n")
@@ -159,26 +161,70 @@ def requirements(prompt: str, db_name: str = "master", collection_name: str = "l
 
 
 @app.command()
-def plan(prompt: str, db_name: str = "master", collection_name: str = "llm"):
-    """Generate a requirement schema using LLM and store it in MongoDB."""
+def plan(prompt: Optional[str] = typer.Argument(None)):
+    """Generate a plan using LLM based on requirements and store it in MongoDB."""
     console = Console()
+    db_name = "master"
+    collection_name = "llm"
 
     try:
         # Check for session ID
         session_id = get_session_id()
         if session_id is None:
-            console.print("[red]Error:[/red] No session initialized. Please run 'init' command first.")
+            console.print(
+                "[red]Error:[/red] No session initialized. Please run 'init' command first."
+            )
             raise typer.Exit(1)
 
         console.print(f"[dim]Using session ID: {session_id}[/dim]\n")
 
+        # Fetch all Requirements documents for this session
+        with MongoDBClient() as db_client:
+            requirements_docs = get_documents(
+                db_client=db_client,
+                db_name=db_name,
+                collection_name=collection_name,
+                query={"type": "Requirement", "session_id": session_id},
+            )
+
+        # Format requirements for the prompt
+        requirements_text = ""
+        if requirements_docs:
+            console.print(f"[dim]Found {len(requirements_docs)} requirement(s)[/dim]\n")
+            requirements_text = "\n\n# Requirements:\n"
+            for idx, req in enumerate(requirements_docs, 1):
+                requirements_text += f"\n## Requirement {idx}:\n"
+                requirements_text += f"- Priority: {req.get('priority', 'N/A')}\n"
+                requirements_text += f"- Component: {req.get('component', 'N/A')}\n"
+                requirements_text += f"- User Story: {req.get('user_story', 'N/A')}\n"
+                requirements_text += f"- Acceptance: {req.get('acceptance', 'N/A')}\n"
+        else:
+            console.print("[yellow]No requirements found for this session[/yellow]\n")
+
+        # Use default prompt if empty
+        if not prompt or not prompt.strip():
+            prompt = """
+Frontend: React + TypeScript + shadcn/ui + Tailwind + Vite;
+Backend: Python FastAPI + Pymongo (MongoDB Atlas);
+Embeddings: Voyage AI;
+Testing: Vitest / Pytest;
+Linting: ESLint + Ruff + Black
+"""
+            console.print("[dim]Using default tech stack prompt[/dim]\n")
+
         # Generate schema using LLM with session_id context
         llm_client = FireworksClient()
-        prompt_with_session = f"Session ID: {session_id}\n\n{prompt}"
+        full_prompt = f"Session ID: {session_id}\n\n{prompt}{requirements_text}"
+        system_prompt = """
+            You are a senior architect planning a web application.
+            Create three planning notes: ADR, design-high, and design-low.
+            Each must include a session_id to link back to this run.
+        """
         response = llm_client.generate_with_schema(
-            prompt=prompt_with_session,
+            prompt=full_prompt,
             schema=Plan.model_json_schema(),
             schema_name="Plan",
+            system_prompt=system_prompt,
         )
 
         # Parse the JSON response
