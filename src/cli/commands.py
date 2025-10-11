@@ -295,6 +295,10 @@ Linting: ESLint + Ruff + Black
         if "type" not in doc:
             doc["type"] = "Plan"
 
+        # Ensure session_id is set at the top level
+        if "session_id" not in doc:
+            doc["session_id"] = session_id
+
         # Store in MongoDB
         with MongoDBClient() as db_client:
             inserted_id = insert_document(
