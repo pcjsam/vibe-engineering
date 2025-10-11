@@ -1,4 +1,4 @@
 """Schemas module for data models."""
-from .models import DecayModel, MetadataModel, SpecifySchema
+from .models import Requirement
 
-__all__ = ["DecayModel", "MetadataModel", "SpecifySchema"]
+__all__ = ["Requirement"]
