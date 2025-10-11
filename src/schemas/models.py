@@ -1,7 +1,7 @@
 """Pydantic models for data validation."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -15,6 +15,7 @@ class Requirement(BaseModel):
     component: str
     user_story: str
     acceptance: str
+    embeddings: Optional[List[float]] = None
 
 
 class ADR(BaseModel):

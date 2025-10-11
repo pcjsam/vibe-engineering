@@ -9,9 +9,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from src.db import MongoDBClient, get_documents, insert_document, delete_documents
-from src.llm import FireworksClient
-from src.schemas import Plan, Requirement
+from src.db import MongoDBClient, get_documents, insert_document
+from src.llm import FireworksClient, VoyageEmbeddings
+from src.schemas import Requirement, Plan
 
 app = typer.Typer()
 
@@ -175,6 +175,12 @@ def requirements(prompt: str, db_name: str = "master", collection_name: str = "l
 
         # Parse the JSON response
         doc = json.loads(response)
+
+        # Generate embeddings using Voyage AI
+        voyage_client = VoyageEmbeddings()
+        embedding_text = f"Component: {doc.get('component', '')}. User Story: {doc.get('user_story', '')}. Acceptance Criteria: {doc.get('acceptance', '')}"
+        embeddings = voyage_client.embed(embedding_text)
+        doc["embeddings"] = embeddings
 
         # Store in MongoDB
         with MongoDBClient() as db_client:
