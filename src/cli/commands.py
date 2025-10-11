@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from src.db import MongoDBClient, get_documents, insert_document
+from src.db import MongoDBClient, get_documents, insert_document, delete_documents
 from src.llm import FireworksClient
 from src.schemas import Plan, Requirement
 
@@ -48,6 +48,55 @@ def init():
 
     except Exception as e:
         console.print(f"[red]Error initializing session:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def reset():
+    """Reset the current session by deleting the session file and all associated documents."""
+    console = Console()
+
+    try:
+        # Check for session ID
+        session_id = get_session_id()
+        if session_id is None:
+            console.print(
+                "[yellow]No active session found. Nothing to reset.[/yellow]"
+            )
+            return
+
+        console.print(f"[dim]Found session ID: {session_id}[/dim]")
+
+        # Confirm with user
+        confirm = typer.confirm(
+            "This will delete the session file and all documents for this session. Continue?"
+        )
+        if not confirm:
+            console.print("[yellow]Reset cancelled.[/yellow]")
+            return
+
+        # Delete all documents with this session_id from the database
+        db_name = "master"
+        collection_name = "llm"
+
+        with MongoDBClient() as db_client:
+            deleted_count = delete_documents(
+                db_client=db_client,
+                db_name=db_name,
+                collection_name=collection_name,
+                query={"session_id": session_id},
+            )
+
+        # Delete the session ID file
+        if SESSION_ID_FILE.exists():
+            SESSION_ID_FILE.unlink()
+
+        console.print(f"[green]✓[/green] Session reset successfully!")
+        console.print(f"[dim]Deleted {deleted_count} document(s) from {db_name}.{collection_name}[/dim]")
+        console.print(f"[dim]Removed session file: {SESSION_ID_FILE.absolute()}[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error resetting session:[/red] {e}")
         raise typer.Exit(1)
 
 
