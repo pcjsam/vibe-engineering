@@ -3,7 +3,8 @@
     "allow": [
       "Bash(uv run:*)",
       "Bash(uv lock:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
