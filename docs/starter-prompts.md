@@ -1,0 +1,2 @@
+# Sample Prompts
+1. “Generate a web application for a Hackathon Leaderboard site. Allow users to enter their team information, including team members (name, email, title), project, and allow judges to rate projects.”
