@@ -16,5 +16,5 @@ uv sync
 ## Usage
 
 ```bash
-uv run typer main.py "John"
+uv run main.py <COMMAND> <ARGUMENTS>
 ```

@@ -1,6 +1,17 @@
-def main(name: str):
+import typer
+
+app = typer.Typer()
+
+
+@app.command()
+def hello(name: str):
     print(f"Hello {name}")
 
 
+@app.command()
+def goodbye(name: str):
+    print(f"Goodbye {name}")
+
+
 if __name__ == "__main__":
-    main()
+    app()
