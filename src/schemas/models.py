@@ -170,3 +170,4 @@ class Task(BaseModel):
 class Tasks(BaseModel):
     test_spec: TestSpec
     task: Task
+    type: Literal["Tasks"] = Field(default="Tasks", frozen=True)

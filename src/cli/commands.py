@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from src.db import MongoDBClient, get_documents, insert_document
+from src.db import MongoDBClient, delete_documents, get_documents, insert_document
 from src.llm import FireworksClient, VoyageEmbeddings
 from src.schemas import Plan, Requirement, Tasks
 
@@ -176,6 +176,10 @@ def requirements(prompt: str, db_name: str = "master", collection_name: str = "l
         # Parse the JSON response
         doc = json.loads(response)
 
+        # Ensure type field is set (in case LLM doesn't include it)
+        if "type" not in doc:
+            doc["type"] = "Requirement"
+
         # Generate embeddings using Voyage AI
         voyage_client = VoyageEmbeddings()
         embedding_text = f"Component: {doc.get('component', '')}. User Story: {doc.get('user_story', '')}. Acceptance Criteria: {doc.get('acceptance', '')}"
@@ -284,6 +288,10 @@ Linting: ESLint + Ruff + Black
 
         # Parse the JSON response
         doc = json.loads(response)
+
+        # Ensure type field is set (in case LLM doesn't include it)
+        if "type" not in doc:
+            doc["type"] = "Plan"
 
         # Store in MongoDB
         with MongoDBClient() as db_client:
@@ -432,6 +440,10 @@ All notes must include the same session_id to link to the originating plan. Foll
 
         # Parse the JSON response
         doc = json.loads(response)
+
+        # Ensure type field is set (in case LLM doesn't include it)
+        if "type" not in doc:
+            doc["type"] = "Tasks"
 
         # Store in MongoDB
         with MongoDBClient() as db_client:
