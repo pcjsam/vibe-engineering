@@ -74,6 +74,23 @@ Override API key for testing:
 uv run main.py test-connection --api-key your_test_api_key
 ```
 
+### Initialize a New Project
+
+Create a new project with default principles and guidelines:
+```bash
+# Basic project initialization
+python main.py init my-project https://github.com/user/repo
+
+# With project owners
+python main.py init my-project https://github.com/user/repo --owner "alice@example.com" --owner "bob@example.com"
+
+# Skip default seeding
+python main.py init my-project https://github.com/user/repo --skip-defaults
+
+# Verbose output
+python main.py init my-project https://github.com/user/repo --verbose
+```
+
 ### Process Text with VoyageAI
 
 Generate embeddings for any text:

@@ -1,6 +1,7 @@
 import typer
 import sys
 import os
+from typing import List
 from rich.console import Console
 from rich.table import Table
 
@@ -11,6 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.commands.test_connection import test_connection_command
 from src.commands.prompt import prompt_command
+from src.commands.init import init_command
 
 app = typer.Typer(
     name="speckit",
@@ -51,6 +53,18 @@ def prompt(
 ):
     """Process text with VoyageAI and return embeddings or analysis."""
     prompt_command(text, model, api_key, output_format, input_type, verbose)
+
+
+@app.command("init")
+def init(
+    slug: str = typer.Argument(..., help="Project slug (unique identifier)"),
+    repo_url: str = typer.Argument(..., help="Repository URL"),
+    owners: List[str] = typer.Option(None, "--owner", "-o", help="Project owners (can specify multiple times)"),
+    skip_defaults: bool = typer.Option(False, "--skip-defaults", help="Skip seeding with default principles and guidelines"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output")
+):
+    """Initialize a new project with principles and guidelines."""
+    init_command(slug, repo_url, owners, skip_defaults, verbose)
 @app.command()
 def team():
     console = Console()
