@@ -9,6 +9,7 @@ dependencies = [
     "fireworks-ai>=0.19.19",
     "pymongo>=4.15.3",
     "python-dotenv>=1.1.1",
+    "requests>=2.32.0",
     "rich>=14.2.0",
     "typer>=0.19.2",
 ]
