@@ -11,7 +11,7 @@ from rich.table import Table
 
 from src.db import MongoDBClient, get_documents, insert_document
 from src.llm import FireworksClient, VoyageEmbeddings
-from src.schemas import Requirement, Plan
+from src.schemas import Plan, Requirement, Tasks
 
 app = typer.Typer()
 
@@ -60,9 +60,7 @@ def reset():
         # Check for session ID
         session_id = get_session_id()
         if session_id is None:
-            console.print(
-                "[yellow]No active session found. Nothing to reset.[/yellow]"
-            )
+            console.print("[yellow]No active session found. Nothing to reset.[/yellow]")
             return
 
         console.print(f"[dim]Found session ID: {session_id}[/dim]")
@@ -92,7 +90,9 @@ def reset():
             SESSION_ID_FILE.unlink()
 
         console.print(f"[green]✓[/green] Session reset successfully!")
-        console.print(f"[dim]Deleted {deleted_count} document(s) from {db_name}.{collection_name}[/dim]")
+        console.print(
+            f"[dim]Deleted {deleted_count} document(s) from {db_name}.{collection_name}[/dim]"
+        )
         console.print(f"[dim]Removed session file: {SESSION_ID_FILE.absolute()}[/dim]")
 
     except Exception as e:
@@ -306,6 +306,154 @@ Linting: ESLint + Ruff + Black
 
         # Pretty print the schema with rich
         console.print("[bold cyan]Generated Requirement:[/bold cyan]")
+        from rich.syntax import Syntax
+
+        json_str = json.dumps(display_doc, indent=2, default=str)
+        syntax = Syntax(json_str, "json", theme="monokai", line_numbers=False)
+        console.print(syntax)
+
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Error parsing JSON response:[/red] {e}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
+@app.command()
+def tasks(prompt: Optional[str] = typer.Argument(None)):
+    """Generate tasks and test specs using LLM based on requirements and plans."""
+    console = Console()
+    db_name = "master"
+    collection_name = "llm"
+
+    try:
+        # Check for session ID
+        session_id = get_session_id()
+        if session_id is None:
+            console.print(
+                "[red]Error:[/red] No session initialized. Please run 'init' command first."
+            )
+            raise typer.Exit(1)
+
+        console.print(f"[dim]Using session ID: {session_id}[/dim]\n")
+
+        # Fetch all Requirements documents for this session
+        with MongoDBClient() as db_client:
+            requirements_docs = get_documents(
+                db_client=db_client,
+                db_name=db_name,
+                collection_name=collection_name,
+                query={"type": "Requirement", "session_id": session_id},
+            )
+
+            # Fetch all Plans documents for this session
+            plans_docs = get_documents(
+                db_client=db_client,
+                db_name=db_name,
+                collection_name=collection_name,
+                query={"type": "Plan", "session_id": session_id},
+            )
+
+        # Format requirements for the prompt
+        requirements_text = ""
+        if requirements_docs:
+            console.print(f"[dim]Found {len(requirements_docs)} requirement(s)[/dim]")
+            requirements_text = "\n\n# Requirements:\n"
+            for idx, req in enumerate(requirements_docs, 1):
+                requirements_text += f"\n## Requirement {idx}:\n"
+                requirements_text += f"- Priority: {req.get('priority', 'N/A')}\n"
+                requirements_text += f"- Component: {req.get('component', 'N/A')}\n"
+                requirements_text += f"- User Story: {req.get('user_story', 'N/A')}\n"
+                requirements_text += f"- Acceptance: {req.get('acceptance', 'N/A')}\n"
+        else:
+            console.print("[yellow]No requirements found for this session[/yellow]")
+
+        # Format plans for the prompt
+        plans_text = ""
+        if plans_docs:
+            console.print(f"[dim]Found {len(plans_docs)} plan(s)[/dim]\n")
+            plans_text = "\n\n# Plans:\n"
+            for idx, plan_doc in enumerate(plans_docs, 1):
+                plans_text += f"\n## Plan {idx}:\n"
+
+                # ADR
+                if "adr" in plan_doc:
+                    adr = plan_doc["adr"]
+                    plans_text += f"\n### ADR:\n"
+                    plans_text += f"- Status: {adr.get('status', 'N/A')}\n"
+                    plans_text += f"- Decision: {adr.get('decision', 'N/A')}\n"
+                    plans_text += f"- Context: {adr.get('context', 'N/A')}\n"
+                    plans_text += f"- Consequences: {adr.get('consequences', 'N/A')}\n"
+
+                # Design High
+                if "design_high" in plan_doc:
+                    design_high = plan_doc["design_high"]
+                    plans_text += f"\n### Design High:\n"
+                    plans_text += f"- Components: {', '.join(design_high.get('components', []))}\n"
+                    plans_text += f"- Dependencies: {', '.join(design_high.get('dependencies', []))}\n"
+
+                # Design Low
+                if "design_low" in plan_doc:
+                    design_low = plan_doc["design_low"]
+                    plans_text += f"\n### Design Low:\n"
+                    plans_text += f"- Module: {design_low.get('module', 'N/A')}\n"
+                    plans_text += f"- Interface: {design_low.get('interface', 'N/A')}\n"
+                    plans_text += (
+                        f"- Data Flows: {design_low.get('data_flows', 'N/A')}\n"
+                    )
+
+                # Threat
+                if "threat" in plan_doc:
+                    threat = plan_doc["threat"]
+                    plans_text += f"\n### Threat:\n"
+                    plans_text += f"- Risk Level: {threat.get('risk_level', 'N/A')}\n"
+                    plans_text += f"- Component: {threat.get('component', 'N/A')}\n"
+                    plans_text += f"- Mitigation: {threat.get('mitigation', 'N/A')}\n"
+        else:
+            console.print("[yellow]No plans found for this session[/yellow]\n")
+
+        # Combine the fetched data as user prompt
+        user_prompt = f"Session ID: {session_id}{requirements_text}{plans_text}"
+
+        # Add any additional prompt provided by the user
+        if prompt and prompt.strip():
+            user_prompt += f"\n\n# Additional Context:\n{prompt}"
+
+        # Generate schema using LLM with system prompt
+        llm_client = FireworksClient()
+        system_prompt = """You are a senior engineer creating detailed tasks and test specs.
+All notes must include the same session_id to link to the originating plan. Follow the plan and requirements commands implementation."""
+
+        response = llm_client.generate_with_schema(
+            prompt=user_prompt,
+            schema=Tasks.model_json_schema(),
+            schema_name="Tasks",
+            system_prompt=system_prompt,
+        )
+
+        # Parse the JSON response
+        doc = json.loads(response)
+
+        # Store in MongoDB
+        with MongoDBClient() as db_client:
+            inserted_id = insert_document(
+                db_client=db_client,
+                db_name=db_name,
+                collection_name=collection_name,
+                document=doc,
+            )
+
+        console.print(
+            f"[green]✓[/green] Document stored in {db_name}.{collection_name}"
+        )
+        console.print(f"[dim]Document ID: {inserted_id}[/dim]\n")
+
+        # Create a copy of doc for display, converting ObjectId to string if present
+        display_doc = doc.copy()
+        if "_id" in display_doc:
+            display_doc["_id"] = str(display_doc["_id"])
+
+        # Pretty print the schema with rich
+        console.print("[bold cyan]Generated Tasks:[/bold cyan]")
         from rich.syntax import Syntax
 
         json_str = json.dumps(display_doc, indent=2, default=str)
