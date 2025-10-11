@@ -9,8 +9,16 @@
 
 ## Installation
 
+1. Install dependencies
+
 ```bash
 uv sync
+```
+
+2. Add env variables and copy the real values
+
+```bash
+cp .env.dist .env
 ```
 
 ## Usage
