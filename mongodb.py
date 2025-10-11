@@ -16,7 +16,7 @@ def fetch_team_members():
 
     try:
         database = client.get_database("master")
-        collection = database.get_collection("test")
+        collection = database.get_collection("team")
 
         query = {}
         documents = collection.find(query)
