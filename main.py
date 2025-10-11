@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from llm import get_llm_response
+from llm import get_specify_schema
 from mongodb import fetch_team_members
 
 app = typer.Typer()
@@ -46,8 +46,8 @@ def team():
 
 
 @app.command()
-def llm():
-    response = get_llm_response()
+def specify(prompt: str):
+    response = get_specify_schema(prompt)
     console = Console()
     console.print(response)
 
