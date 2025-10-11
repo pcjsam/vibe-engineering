@@ -1,4 +1,5 @@
 """Schemas module for data models."""
-from .models import Requirement
 
-__all__ = ["Requirement"]
+from .models import Plan, Requirement
+
+__all__ = ["Requirement", "Plan"]
