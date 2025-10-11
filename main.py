@@ -2,6 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from llm import get_llm_response
 from mongodb import fetch_team_members
 
 app = typer.Typer()
@@ -42,6 +43,13 @@ def team():
     console.print(
         f"\n[bold blue]Total Team Members:[/bold blue] [yellow]{len(team_members)}[/yellow]"
     )
+
+
+@app.command()
+def llm():
+    response = get_llm_response()
+    console = Console()
+    console.print(response)
 
 
 if __name__ == "__main__":
