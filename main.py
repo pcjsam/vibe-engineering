@@ -1,5 +1,5 @@
-def main():
-    print("Hello from vibe-engineering!")
+def main(name: str):
+    print(f"Hello {name}")
 
 
 if __name__ == "__main__":
