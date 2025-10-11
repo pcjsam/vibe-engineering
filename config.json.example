@@ -1,0 +1,12 @@
+{
+  "voyageai": {
+    "model": "voyage-code-2",
+    "batch_size": 128
+  },
+  "mongodb": {
+    "uri": "mongodb://localhost:27017",
+    "database": "speckit",
+    "collection": "specifications",
+    "vector_index": "spec_vector_index"
+  }
+}

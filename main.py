@@ -1,16 +1,52 @@
 import typer
+import sys
+import os
 
-app = typer.Typer()
+# Add the src directory to the path so we can import our modules
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+
+from src.commands.test_connection import test_connection_command
+from src.commands.prompt import prompt_command
+
+app = typer.Typer(
+    name="speckit",
+    help="A CLI tool for managing specifications with VoyageAI embeddings and MongoDB vector search."
+)
 
 
 @app.command()
 def hello(name: str):
+    """Say hello to someone."""
     print(f"Hello {name}")
 
 
 @app.command()
 def goodbye(name: str):
+    """Say goodbye to someone."""
     print(f"Goodbye {name}")
+
+
+@app.command("test-connection")
+def test_connection(
+    service: str = typer.Option(None, "--service", "-s", help="Test specific service: 'voyageai' or 'mongodb'"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
+    api_key: str = typer.Option(None, "--api-key", help="VoyageAI API key for testing")
+):
+    """Test connections to VoyageAI and MongoDB services."""
+    test_connection_command(service, verbose, api_key)
+
+
+@app.command("prompt")
+def prompt(
+    text: str = typer.Argument(..., help="The text prompt to process with VoyageAI"),
+    model: str = typer.Option(None, "--model", "-m", help="VoyageAI model to use (default: voyage-code-2)"),
+    api_key: str = typer.Option(None, "--api-key", help="VoyageAI API key"),
+    output_format: str = typer.Option("summary", "--format", "-f", help="Output format: summary, full, json, embedding"),
+    input_type: str = typer.Option("document", "--input-type", help="Input type: document, query"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output")
+):
+    """Process text with VoyageAI and return embeddings or analysis."""
+    prompt_command(text, model, api_key, output_format, input_type, verbose)
 
 
 if __name__ == "__main__":
