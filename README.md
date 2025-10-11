@@ -12,6 +12,8 @@ A Python CLI tool that replicates the functionality of github/spec-kit with Voya
 
 ## Installation
 
+1. Install dependencies
+
 ```bash
 # Install dependencies
 uv sync
@@ -36,6 +38,12 @@ MONGODB_URI=mongodb://localhost:27017
 3. Optionally, create a `config.json` file (see `config.json.example`):
 ```bash
 cp config.json.example config.json
+```
+
+2. Add env variables and copy the real values
+
+```bash
+cp .env.dist .env
 ```
 
 ## Usage
