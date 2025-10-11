@@ -29,7 +29,7 @@ import os
 import re
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, UTC
 from textwrap import dedent
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -47,8 +47,8 @@ load_dotenv()
 TECH_STACK_PATTERN = r'\b(react|vue|vite|sql|sqlite|docker|redis|s3|kafka|k8s|kubernetes|api endpoint|grpc|protobuf|orm|aws|gcp|azure|cloudflare|tailwind|sass|redux|zustand|next\.js)\b'
 
 LLM_SYSTEM_PROMPT = """You convert WHAT/WHY product prompts into JSONL "memories".
-Fields: kind ∈ {vibe,spec,constraint,non_goal,metric,example,open_question}, title, content (≤ 8 lines), tags[], deps[].
-Rules: no implementation/tech details; one idea per memory; create open_question if info is missing; concise & reusable; tags from a small set like ["ux","photos","albums","a11y","perf"].
+Fields: kind ∈ {vibe,spec,constraint,non_goal,metric,example}, title, content (≤ 8 lines), tags[], deps[].
+Rules: no implementation/tech details; one idea per memory; concise & reusable; tags from a small set like ["ux","photos","albums","a11y","perf"].
 Output JSONL only."""
 
 FALLBACK_MEMORIES = """
@@ -57,7 +57,6 @@ FALLBACK_MEMORIES = """
 {"kind": "spec", "title": "Drag and drop reordering", "content": "Albums can be re-organized by dragging and dropping on the main page", "tags": ["ux", "albums"], "deps": []}
 {"kind": "constraint", "title": "Albums cannot be nested", "content": "Albums are never contained within other albums", "tags": ["albums", "constraint"], "deps": []}
 {"kind": "spec", "title": "Tiled photo previews", "content": "Within each album, photos are previewed in a tile-like interface", "tags": ["photos", "ux"], "deps": []}
-{"kind": "open_question", "title": "Tile size configuration", "content": "What should be the default tile size and can users customize it?", "tags": ["ux", "photos"], "deps": []}
 """.strip()
 
 
@@ -146,7 +145,7 @@ def segment_to_jsonl(prompt_text: str, tags: List[str]) -> str:
 
 def normalize_and_validate(items: List[Dict]) -> List[Dict]:
     """Normalize and filter memories, dropping invalid ones."""
-    valid_kinds = {"vibe", "spec", "constraint", "non_goal", "metric", "example", "open_question"}
+    valid_kinds = {"vibe", "spec", "constraint", "non_goal", "metric", "example"}
     normalized = []
 
     for item in items:
@@ -185,8 +184,7 @@ def score_and_pin(item: Dict, pinned_titles: List[str]) -> Dict:
         "vibe": 0.7,
         "spec": 0.6,
         "non_goal": 0.5,
-        "example": 0.5,
-        "open_question": 0.5
+        "example": 0.5
     }
 
     item["priority"] = priority_map.get(item["kind"], 0.5)
@@ -208,12 +206,15 @@ def score_and_pin(item: Dict, pinned_titles: List[str]) -> Dict:
     return item
 
 
-def embed(text: str) -> Optional[List[float]]:
-    """Generate embedding using Voyage AI."""
+def embed_batch(texts: List[str]) -> List[List[float]]:
+    """Generate embeddings for multiple texts using Voyage AI in a single batch request."""
+    if not texts:
+        return []
+
     api_key = os.getenv("VOYAGE_API_KEY")
     if not api_key:
-        # Return a dummy embedding for testing
-        return [0.0] * 1024  # Voyage-2 default dimension
+        # Return dummy embeddings for testing
+        return [[0.0] * 1024 for _ in texts]
 
     model = os.getenv("VOYAGE_MODEL", "voyage-2")
 
@@ -225,18 +226,20 @@ def embed(text: str) -> Optional[List[float]]:
                 "Content-Type": "application/json"
             },
             json={
-                "input": text,
+                "input": texts,  # Send all texts at once
                 "model": model
             },
-            timeout=30
+            timeout=60  # Longer timeout for batch
         )
         response.raise_for_status()
         data = response.json()
-        return data["data"][0]["embedding"]
+        # Extract embeddings in order
+        return [item["embedding"] for item in data["data"]]
     except Exception as e:
-        print(f"Warning: Embedding failed: {e}", file=sys.stderr)
-        # Return dummy embedding on failure
-        return [0.0] * 1024
+        print(f"Warning: Batch embedding failed: {e}", file=sys.stderr)
+        print(f"Falling back to dummy embeddings for {len(texts)} texts", file=sys.stderr)
+        # Return dummy embeddings on failure
+        return [[0.0] * 1024 for _ in texts]
 
 
 def compute_content_hash(content: str) -> str:
@@ -346,20 +349,22 @@ def main():
     # Normalize and validate
     normalized = normalize_and_validate(raw_items)
 
+    # Add scoring and pinning to all items
+    for item in normalized:
+        score_and_pin(item, pinned_titles)
+
+    # Generate embeddings in batch (single API call)
+    content_texts = [item["content"] for item in normalized]
+    embeddings = embed_batch(content_texts)
+
     # Build complete documents
     documents = []
-    for item in normalized:
-        # Add scoring and pinning
-        item = score_and_pin(item, pinned_titles)
-
-        # Generate embedding
-        embedding = embed(item["content"])
-
+    for item, embedding in zip(normalized, embeddings):
         # Create full document
         doc = {
             "memory_id": str(uuid.uuid4()),
             "project_id": args.project_id,
-            "created_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "author": "human",
             "kind": item["kind"],
             "title": item["title"],
