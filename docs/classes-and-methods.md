@@ -453,7 +453,7 @@ def __init__(self, api_key: Optional[str] = None, model: str = "voyage-2")
 ##### `embed()`
 
 ```python
-def embed(self, text: str) -> Optional[List[float]]
+def embed(self, text: str) -> List[float]
 ```
 
 **Description**: Generates embedding vector for a single text.
@@ -461,7 +461,7 @@ def embed(self, text: str) -> Optional[List[float]]
 **Parameters**:
 - `text`: Text to embed
 
-**Returns**: List of floats representing the embedding, or dummy vector if API unavailable
+**Returns**: List of floats representing the embedding (real embeddings from API or dummy vector if API unavailable)
 
 **Behavior**:
 - Makes API call to Voyage AI
@@ -479,7 +479,7 @@ def embed(self, text: str) -> Optional[List[float]]
 ##### `embed_batch()`
 
 ```python
-def embed_batch(self, texts: List[str]) -> List[Optional[List[float]]]
+def embed_batch(self, texts: List[str]) -> List[List[float]]
 ```
 
 **Description**: Generates embeddings for multiple texts in a single API call.
@@ -487,12 +487,115 @@ def embed_batch(self, texts: List[str]) -> List[Optional[List[float]]]
 **Parameters**:
 - `texts`: List of texts to embed
 
-**Returns**: List of embedding vectors corresponding to input texts
+**Returns**: List of embedding vectors corresponding to input texts (one vector per input text, using real or dummy embeddings)
 
 **Behavior**:
 - Batch processing for efficiency
 - Same error handling as `embed()`
 - Timeout: 30 seconds
+
+---
+
+### `segmentation.py`
+
+#### Class: `SpecificationSegmenter`
+
+**Description**: Segments natural language prompts into atomic memory specifications using LLM.
+
+**Constructor**:
+```python
+def __init__(self, api_key: str = None, model: str = None)
+```
+
+**Parameters**:
+- `api_key` (str, optional): Fireworks API key. Reads from `FIREWORKS_API_KEY` env var if not provided
+- `model` (str, optional): Model identifier. Reads from `FIREWORKS_MODEL` env var or defaults to "accounts/fireworks/models/llama-v3p1-70b-instruct"
+
+**Attributes**:
+- `api_key`: API key for authentication
+- `model`: Model identifier for Fireworks AI
+
+**Constants**:
+- `LLM_SYSTEM_PROMPT`: System prompt that instructs the LLM to convert prompts into structured memories
+- `FALLBACK_MEMORIES`: Example JSONL memories used when API is unavailable
+
+---
+
+##### `segment_to_jsonl()`
+
+```python
+def segment_to_jsonl(self, prompt_text: str, tags: List[str]) -> str
+```
+
+**Description**: Segments a specification prompt into JSONL-formatted memories using Fireworks AI LLM.
+
+**Parameters**:
+- `prompt_text`: The specification prompt to segment
+- `tags`: List of suggested tags for the LLM to use
+
+**Returns**: JSONL string containing segmented memories
+
+**Memory Fields**:
+- `kind`: Type of memory (vibe, spec, constraint, non_goal, metric, example, open_question)
+- `title`: Short title for the memory
+- `content`: Content (≤ 8 lines)
+- `tags`: List of tags
+- `deps`: List of dependencies
+
+**Behavior**:
+- Sends prompt to Fireworks AI with system instructions
+- Returns structured JSONL output
+- Falls back to example memories if API unavailable
+- Temperature: 0.7, Max tokens: 2000, Timeout: 30s
+
+**Error Handling**:
+- Returns `FALLBACK_MEMORIES` if API key not set
+- Returns fallback memories on API failure
+- Prints warning message on errors
+
+**Example**:
+```python
+segmenter = SpecificationSegmenter()
+jsonl = segmenter.segment_to_jsonl(
+    prompt_text="Create a photo album app with drag and drop",
+    tags=["photos", "albums", "ux"]
+)
+```
+
+---
+
+##### `parse_jsonl()`
+
+```python
+def parse_jsonl(self, jsonl_text: str) -> List[Dict]
+```
+
+**Description**: Parses JSONL text into a list of dictionaries.
+
+**Parameters**:
+- `jsonl_text`: JSONL formatted string (one JSON object per line)
+
+**Returns**: List of parsed JSON objects
+
+**Behavior**:
+- Splits text by newlines
+- Parses each non-empty line as JSON
+- Skips invalid lines with warning
+- Continues parsing after errors
+
+**Error Handling**:
+- Catches `JSONDecodeError` for individual lines
+- Prints warning for failed lines
+- Continues processing remaining lines
+
+**Example**:
+```python
+segmenter = SpecificationSegmenter()
+jsonl = '''{"kind": "spec", "title": "Feature A", "content": "...", "tags": [], "deps": []}
+{"kind": "constraint", "title": "Limit B", "content": "...", "tags": [], "deps": []}'''
+memories = segmenter.parse_jsonl(jsonl)
+# Returns: [{"kind": "spec", ...}, {"kind": "constraint", ...}]
+```
 
 ---
 
@@ -645,6 +748,24 @@ vectors = embedder.embed_batch([
     "Second text",
     "Third text"
 ])
+```
+
+### Specification Segmentation
+
+```python
+# Segment prompt into atomic memories
+segmenter = SpecificationSegmenter()
+jsonl = segmenter.segment_to_jsonl(
+    prompt_text="Build a photo sharing app with albums",
+    tags=["photos", "albums", "ux"]
+)
+
+# Parse JSONL to list of memories
+memories = segmenter.parse_jsonl(jsonl)
+
+# Process each memory
+for memory in memories:
+    print(f"{memory['kind']}: {memory['title']}")
 ```
 
 ---

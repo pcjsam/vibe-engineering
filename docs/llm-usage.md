@@ -164,6 +164,58 @@ def specify(prompt: str, db_name: str = "master", collection_name: str = "llm"):
     console.print(Syntax(json.dumps(doc, indent=2), "json"))
 ```
 
+### Specification Segmentation
+
+The system includes a specialized LLM workflow for breaking down natural language prompts into atomic, structured memories.
+
+**Client**: `SpecificationSegmenter` (in `src/llm/segmentation.py`)
+
+**Purpose**: Convert high-level specification prompts into discrete, traceable memory units.
+
+#### How It Works
+
+1. **System Prompt**: Instructs LLM to convert WHAT/WHY prompts into structured memories
+2. **Memory Types**: vibe, spec, constraint, non_goal, metric, example, open_question
+3. **Output Format**: JSONL (one memory per line)
+4. **Constraints**: No implementation details, one idea per memory, concise content
+
+**Example**:
+```python
+from src.llm.segmentation import SpecificationSegmenter
+
+segmenter = SpecificationSegmenter()
+
+# Segment a prompt
+jsonl = segmenter.segment_to_jsonl(
+    prompt_text="""
+    Create a photo album application where:
+    - Photos are organized in separate albums
+    - Albums are grouped by date
+    - Users can drag and drop to reorder albums
+    - Albums cannot be nested
+    - Photos show in a tile interface
+    """,
+    tags=["photos", "albums", "ux"]
+)
+
+# Parse the JSONL output
+memories = segmenter.parse_jsonl(jsonl)
+
+# Each memory is a dict with: kind, title, content, tags, deps
+for memory in memories:
+    print(f"{memory['kind']}: {memory['title']}")
+```
+
+**Output Example**:
+```json
+{"kind": "spec", "title": "Photo album organization", "content": "Application organizes photos into separate albums", "tags": ["photos", "albums"], "deps": []}
+{"kind": "spec", "title": "Album date grouping", "content": "Albums are grouped by date", "tags": ["albums", "organization"], "deps": []}
+{"kind": "spec", "title": "Drag and drop reordering", "content": "Albums can be re-organized by dragging and dropping on the main page", "tags": ["ux", "albums"], "deps": []}
+{"kind": "constraint", "title": "Albums cannot be nested", "content": "Albums are never contained within other albums", "tags": ["albums", "constraint"], "deps": []}
+```
+
+**Fallback Behavior**: If API is unavailable, returns example memories for testing.
+
 ---
 
 ## Voyage AI Integration
@@ -686,4 +738,5 @@ Currently uses console output. Consider adding:
 - `src/llm/embeddings.py` - Voyage AI embeddings client
 - `src/schemas/models.py` - Pydantic schemas for structured output
 - `src/cli/commands.py` - CLI commands using LLMs
-- `docs/high-level-design.md` - System design overview
+- `docs/architecture.md` - System architecture overview
+- `docs/high-level-design.md` - Weekend blueprint and prototype design
