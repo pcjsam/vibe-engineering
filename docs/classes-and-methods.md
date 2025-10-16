@@ -453,7 +453,7 @@ def __init__(self, api_key: Optional[str] = None, model: str = "voyage-2")
 ##### `embed()`
 
 ```python
-def embed(self, text: str) -> List[float]
+def embed(self, text: str) -> Optional[List[float]]
 ```
 
 **Description**: Generates embedding vector for a single text.
@@ -461,7 +461,7 @@ def embed(self, text: str) -> List[float]
 **Parameters**:
 - `text`: Text to embed
 
-**Returns**: List of floats representing the embedding (real embeddings from API or dummy vector if API unavailable)
+**Returns**: List of floats representing the embedding. In practice, always returns a list (either real embeddings from API or dummy vector if API unavailable), never None despite the Optional type hint
 
 **Behavior**:
 - Makes API call to Voyage AI
@@ -479,7 +479,7 @@ def embed(self, text: str) -> List[float]
 ##### `embed_batch()`
 
 ```python
-def embed_batch(self, texts: List[str]) -> List[List[float]]
+def embed_batch(self, texts: List[str]) -> List[Optional[List[float]]]
 ```
 
 **Description**: Generates embeddings for multiple texts in a single API call.
@@ -487,7 +487,7 @@ def embed_batch(self, texts: List[str]) -> List[List[float]]
 **Parameters**:
 - `texts`: List of texts to embed
 
-**Returns**: List of embedding vectors corresponding to input texts (one vector per input text, using real or dummy embeddings)
+**Returns**: List of embedding vectors corresponding to input texts. In practice, always returns a list of valid embedding vectors (using real or dummy embeddings), never contains None values despite the Optional type hint
 
 **Behavior**:
 - Batch processing for efficiency
